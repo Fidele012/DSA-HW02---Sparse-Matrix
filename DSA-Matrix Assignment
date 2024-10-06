@@ -1,0 +1,116 @@
+import re
+
+class CompressedMatrix:
+    def __init__(self, filePath=None, rows=0, cols=0):
+        self.rows = rows
+        self.cols = cols
+        self.data = {}
+        if filePath:
+            self.load_from_file(filePath)
+    
+    def load_from_file(self, filePath):
+        try:
+            with open(filePath, 'r') as file:
+                lines = file.readlines()
+                
+                # Extract matrix dimensions
+                row_info = lines[0].strip()
+                col_info = lines[1].strip()
+                self.rows = int(row_info.split('=')[1])
+                self.cols = int(col_info.split('=')[1])
+                
+                # Parse each line to get matrix data
+                for line in lines[2:]:
+                    line = line.strip()
+                    if not line:  # Skip empty lines
+                        continue
+                    match = re.match(r'\((\d+),\s*(\d+),\s*(-?\d+)\)', line)
+                    if not match:
+                        raise ValueError("Incorrect format in input file")
+                    r, c, val = map(int, match.groups())
+                    self.set_value(r, c, val)
+        except Exception as e:
+            raise ValueError(f"Error while reading matrix file: {str(e)}")
+    
+    def get_value(self, r, c):
+        return self.data.get((r, c), 0)
+    
+    def set_value(self, r, c, val):
+        if val != 0:
+            self.data[(r, c)] = val
+        elif (r, c) in self.data:
+            del self.data[(r, c)]  # Maintain sparsity by removing zero values
+    
+    def add_matrix(self, other):
+        if self.rows != other.rows or self.cols != other.cols:
+            raise ValueError("Matrices must have the same dimensions to be added")
+        
+        result = CompressedMatrix(rows=self.rows, cols=self.cols)
+        
+        # Add values from both matrices
+        for (r, c), val in self.data.items():
+            result.set_value(r, c, val + other.get_value(r, c))
+        
+        for (r, c), val in other.data.items():
+            if (r, c) not in self.data:
+                result.set_value(r, c, val)
+        
+        return result
+    
+    def subtract_matrix(self, other):
+        if self.rows != other.rows or self.cols != other.cols:
+            raise ValueError("Matrices must have the same dimensions to subtract")
+        
+        result = CompressedMatrix(rows=self.rows, cols=self.cols)
+        
+        # Subtract values from both matrices
+        for (r, c), val in self.data.items():
+            result.set_value(r, c, val - other.get_value(r, c))
+        
+        for (r, c), val in other.data.items():
+            if (r, c) not in self.data:
+                result.set_value(r, c, -val)
+        
+        return result
+    
+    def multiply_matrix(self, other):
+        if self.cols != other.rows:
+            raise ValueError("Matrix multiplication is not possible. Columns of the first matrix must equal rows of the second")
+        
+        result = CompressedMatrix(rows=self.rows, cols=other.cols)
+        
+        # Multiply by computing the dot product
+        for (r1, c1), val1 in self.data.items():
+            for c2 in range(other.cols):
+                val2 = other.get_value(c1, c2)
+                if val2 != 0:
+                    result.set_value(r1, c2, result.get_value(r1, c2) + val1 * val2)
+        
+        return result
+
+
+def run():
+    # Load two compressed matrices from files
+    matrix1 = CompressedMatrix(filePath='DSA/small_input_01.txt')
+    matrix2 = CompressedMatrix(filePath='DSA/small_input_02.txt')
+    
+    # Get user input to choose operation
+    operation = input("Choose operation: add, subtract, multiply: ").strip().lower()
+    
+    if operation == 'add':
+        result = matrix1.add_matrix(matrix2)
+    elif operation == 'subtract':
+        result = matrix1.subtract_matrix(matrix2)
+    elif operation == 'multiply':
+        result = matrix1.multiply_matrix(matrix2)
+    else:
+        print("Invalid operation")
+        return
+    
+    # Output the result matrix (in compressed format)
+    for (r, c), val in result.data.items():
+        print(f"({r}, {c}, {val})")
+
+
+if __name__ == "__main__":
+    run()
